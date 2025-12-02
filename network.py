@@ -60,12 +60,14 @@ class Network:
         """
         if not self.optimizer_built:
             self.params.extend(itertools.chain(*[layer.params for layer in self.layers]))
-            self.grads.extend(itertools.chain(*[layer.grads for layer in self.layers]))
             self.first_moments = [np.zeros_like(param) for param in self.params]
             self.second_moments = [np.zeros_like(param) for param in self.params]
             self.time_step = 1
             self.optimizer_built = True
-        for param, grad, first_moment, second_moment in zip(self.params, self.grads,
+        
+        current_grads = list(itertools.chain(*[layer.grads for layer in self.layers]))
+        
+        for param, grad, first_moment, second_moment in zip(self.params, current_grads,
                                                             self.first_moments, self.second_moments):
             first_moment *= beta_1
             first_moment += (1 - beta_1) * grad

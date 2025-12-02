@@ -23,14 +23,15 @@ class Layer:
 
 class Linear(Layer):
     def __init__(self, inF, outF, bias=True, dtype=np.float32):
+        super().__init__()
         self.layers_name = self.__class__.__name__
         self.trainable = True
         lim = 1 / np.sqrt(inF) # Only inF used to calculate the limit, avoid saturation..
         self.w = np.random.uniform(-lim, lim, (outF, inF)).astype(dtype) # torch style (outF, inF)
         self.b = np.random.randn(outF).astype(dtype) * 0.1 if bias else None
-        self.params = (self.w, self.b)
+        self.params = [self.w, self.b] if bias else [self.w]
+        self.grads = [np.zeros_like(p) for p in self.params]
         self.inShape, self.outShape = (inF,), (outF,)
-        super().__init__()
 
     def forward(self, z):
         self.z = z
@@ -38,6 +39,9 @@ class Linear(Layer):
 
     def backward(self, TopGrad):
         self.zGrad, self.wGrad, self.bGrad = affin_trans_backward(TopGrad, self.z, self.w)
+        self.grads[0] = self.wGrad
+        if self.b is not None:
+            self.grads[1] = self.bGrad
         return self.zGrad
 
 class BatchNorm1D(Layer):
