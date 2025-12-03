@@ -129,10 +129,10 @@ class Conv2d(Layer):
 
 class MaxPool2d(Layer):
     def __init__(self, K, S=None, P=0):
+        super().__init__()
         self.k, self.s, self.p  = _pair(K), _pair(S), _pair(P)
         self.layers_name = self.__class__.__name__
         self.cache = None
-        super().__init__()
 
     def forward(self, x):
         out, self.cache = max_pool2d(x, self.k, self.s, self.p, return_indices=True)
@@ -170,10 +170,10 @@ class Reshape(Layer):
 
 class Flatten(Reshape):
     def __init__(self, inShape):
+        super().__init__()
         self.inShape = inShape if isinstance(inShape,tuple) else (inShape,)
         self.outShape = (np.prod(inShape),)
         self.layers_name = self.__class__.__name__
-        super().__init__()
 
 class LSTM(Layer):
     def __init__(self, input_size, hidden_size, bias=True):
@@ -195,21 +195,6 @@ class LSTM(Layer):
     def backward(self, TopGrad):
         zGrad, self.wGrad = lstmP(TopGrad, self.input, self.cach)
         return zGrad
-
-class SoftmaxCELayer(Layer):
-    def __init__(self, inShape=None):
-        Layer.__init__(self)
-        self.layers_name = self.__class__.__name__
-        if inShape: self.inShape = inShape if isinstance(inShape,tuple) else (inShape,)
-
-    def forward(self, z, truth):
-        self.truth = truth
-        self.output, self.cache = softmax_crossentropy(z, self.truth)
-        return self.output
-
-    def backward(self, top_grad=1.0):
-        self.bottom_grad = backward_softmax_crossentropy(top_grad, self.cache, self.truth)
-        return self.bottom_grad
 
 
 # --- 
@@ -239,35 +224,6 @@ class Pad2DLayer(Layer):
 
     def backward(self, top_grad):
         self.bottom_grad = backward_pad2D(top_grad, self.pad_shape)
-        return self.bottom_grad
-
-class SoftmaxCELayer(Layer):
-    """Calculates the softmax-crossentropy loss of the given input logits wrt some truth value."""
-
-    def __init__(self):
-        Layer.__init__(self)
-
-    def build(self, input_shape):
-        self.input_shape = input_shape
-        self.output_shape = ()
-        self.built = True
-
-    def forward(self, input_, truth):
-        """
-        :param input_: The logits
-        :param truth: The indices of the correct classification
-        :return: The calculated loss
-        """
-        if not self.built:
-            input_shape = input_.shape[1:]
-            self.build(input_shape)
-        self.input = input_
-        self.truth = truth
-        self.output, self.cache = softmax_crossentropy(input_, self.truth)
-        return self.output
-
-    def backward(self, top_grad=1.0):
-        self.bottom_grad = backward_softmax_crossentropy(top_grad, self.cache, self.truth)
         return self.bottom_grad
 
 # ---

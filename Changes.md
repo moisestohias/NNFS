@@ -1,7 +1,8 @@
-# Debugging Report: Neural Network Training Issue
+# 2025-12-02 - Bug fix
+## Fix Linear Layer Initialization, Gradient Updates and Stale Gradient References in Network
 
 ## Issue Description
-The user reported that the loss was not decreasing during training when running `train.py`. The model appeared to be failing to learn.
+The loss was not decreasing during training when running `train.py`. The issue was obvious from inspecting the loss.
 
 ## Root Cause Analysis
 Upon investigation, two distinct but compounding issues were identified:

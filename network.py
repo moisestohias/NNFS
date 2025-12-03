@@ -1,14 +1,8 @@
-import itertools
-import numpy as np
-
 class Network:
     """A sequential neural network"""
 
     def __init__(self):
         self.layers = []
-        self.params = []
-        self.grads = []
-        self.optimizer_built = False
 
     def add_layer(self, layer):
         """
@@ -48,32 +42,3 @@ class Network:
         top_grad = 1.0
         for layer in self.layers[::-1]:
             top_grad = layer.backward(top_grad)
-
-    def adam_trainstep(self, alpha=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-8, l2=0.):
-        """
-        Run the update step after calculating the gradients
-        :param alpha: The learning rate
-        :param beta_1: The exponential average weight for the first moment
-        :param beta_2: The exponential average weight for the second moment
-        :param epsilon: The smoothing constant
-        :param l2: The l2 decay constant
-        """
-        if not self.optimizer_built:
-            self.params.extend(itertools.chain(*[layer.params for layer in self.layers]))
-            self.first_moments = [np.zeros_like(param) for param in self.params]
-            self.second_moments = [np.zeros_like(param) for param in self.params]
-            self.time_step = 1
-            self.optimizer_built = True
-        
-        current_grads = list(itertools.chain(*[layer.grads for layer in self.layers]))
-        
-        for param, grad, first_moment, second_moment in zip(self.params, current_grads,
-                                                            self.first_moments, self.second_moments):
-            first_moment *= beta_1
-            first_moment += (1 - beta_1) * grad
-            second_moment *= beta_2
-            second_moment += (1 - beta_2) * (grad ** 2)
-            m_hat = first_moment / (1 - beta_1 ** self.time_step)
-            v_hat = second_moment / (1 - beta_2 ** self.time_step)
-            param -= alpha * m_hat / (np.sqrt(v_hat) + epsilon) + l2 * param
-        self.time_step += 1
