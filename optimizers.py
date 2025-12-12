@@ -6,6 +6,8 @@ import itertools
 class Optimizer:
     def __init__(self): raise NotImplementedError
     def update(self): raise NotImplementedError
+    def state_dict(self): raise NotImplementedError
+    def load_state_dict(self, state_dict): raise NotImplementedError
 
 
 class Adam(Optimizer):
@@ -40,6 +42,46 @@ class Adam(Optimizer):
             v_hat = second_moment / (1 - self.beta_2 ** self.time_step)
             param -= self.alpha * m_hat / (np.sqrt(v_hat) + self.epsilon) + self.l2 * param
         self.time_step += 1
+
+    def state_dict(self):
+        """
+        Returns the optimizer state for checkpointing.
+        
+        Returns:
+            dict: Contains optimizer name, hyperparameters, and internal state.
+        """
+        return {
+            'optimizer_name': 'Adam',
+            'alpha': self.alpha,
+            'beta_1': self.beta_1,
+            'beta_2': self.beta_2,
+            'epsilon': self.epsilon,
+            'l2': self.l2,
+            'time_step': self.time_step,
+            'first_moments': [m.copy() for m in self.first_moments],
+            'second_moments': [m.copy() for m in self.second_moments],
+            'optimizer_built': self.optimizer_built
+        }
+
+    def load_state_dict(self, state_dict):
+        """
+        Restores optimizer state from a state dictionary.
+        
+        Args:
+            state_dict: Dictionary containing optimizer state.
+            
+        Raises:
+            ValueError: If optimizer type doesn't match.
+        """
+        if state_dict.get('optimizer_name') != 'Adam':
+            raise ValueError(
+                f"Optimizer mismatch: expected Adam, got {state_dict.get('optimizer_name')}"
+            )
+        
+        self.time_step = state_dict['time_step']
+        self.first_moments = [m.copy() for m in state_dict['first_moments']]
+        self.second_moments = [m.copy() for m in state_dict['second_moments']]
+        self.optimizer_built = state_dict.get('optimizer_built', True)
 
 
 class SGD(Optimizer):
@@ -87,3 +129,38 @@ class SGD(Optimizer):
             else:
                 # Standard SGD without momentum
                 param -= self.lr * grad
+
+    def state_dict(self):
+        """
+        Returns the optimizer state for checkpointing.
+        
+        Returns:
+            dict: Contains optimizer name, hyperparameters, and internal state.
+        """
+        return {
+            'optimizer_name': 'SGD',
+            'lr': self.lr,
+            'momentum': self.momentum,
+            'nesterov': self.nesterov,
+            'l2': self.l2,
+            'velocities': [v.copy() for v in self.velocities],
+            'optimizer_built': self.optimizer_built
+        }
+
+    def load_state_dict(self, state_dict):
+        """
+        Restores optimizer state from a state dictionary.
+        
+        Args:
+            state_dict: Dictionary containing optimizer state.
+            
+        Raises:
+            ValueError: If optimizer type doesn't match.
+        """
+        if state_dict.get('optimizer_name') != 'SGD':
+            raise ValueError(
+                f"Optimizer mismatch: expected SGD, got {state_dict.get('optimizer_name')}"
+            )
+        
+        self.velocities = [v.copy() for v in state_dict['velocities']]
+        self.optimizer_built = state_dict.get('optimizer_built', True)

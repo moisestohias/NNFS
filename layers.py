@@ -21,6 +21,38 @@ class Layer:
   def forward(self, input): pass
   def backward(self, TopGrad): pass
 
+  def state_dict(self):
+    """
+    Returns a dictionary containing the layer's learnable parameters.
+    
+    Returns:
+        dict: State dictionary with layer name and parameter copies.
+    """
+    return {
+        'layer_name': self.layers_name,
+        'params': [p.copy() for p in self.params] if self.params else []
+    }
+
+  def load_state_dict(self, state_dict):
+    """
+    Restores the layer's parameters from a state dictionary.
+    
+    Args:
+        state_dict: Dictionary containing 'params' key with parameter arrays.
+        
+    Raises:
+        ValueError: If parameter shapes don't match.
+    """
+    if not state_dict.get('params') or not self.params:
+        return
+    for i, param_data in enumerate(state_dict['params']):
+        if self.params[i].shape != param_data.shape:
+            raise ValueError(
+                f"Shape mismatch in layer '{self.layers_name}' param {i}: "
+                f"expected {self.params[i].shape}, got {param_data.shape}"
+            )
+        np.copyto(self.params[i], param_data)
+
 class Linear(Layer):
     def __init__(self, inF, outF, bias=True, dtype=np.float32):
         super().__init__()
@@ -77,6 +109,21 @@ class BatchNorm1D(Layer):
 
     def backward(self, TopGrad):
         return batch_norm_backward(TopGrad, self.cache)
+
+    def state_dict(self):
+        """Returns state including running statistics for inference."""
+        state = super().state_dict()
+        state['running_mean'] = self.running_mean.copy()
+        state['running_var'] = self.running_var.copy()
+        return state
+
+    def load_state_dict(self, state_dict):
+        """Restores parameters and running statistics."""
+        super().load_state_dict(state_dict)
+        if 'running_mean' in state_dict:
+            np.copyto(self.running_mean, state_dict['running_mean'])
+        if 'running_var' in state_dict:
+            np.copyto(self.running_var, state_dict['running_var'])
 
 
 class BatchNorm2d(Layer):
