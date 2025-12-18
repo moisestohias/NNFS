@@ -167,7 +167,8 @@ class Conv2d(Layer):
     return out
 
   def backward(self, TopGrad):
-    dW, dZ = corr2d_backward(self.z, self.w, TopGrad, mode="valid")
+    # dW, dZ = corr2d_backward(self.z, self.w, TopGrad, mode="valid") # old
+    dW, dZ = corr2d_backward(self.z, self.w, TopGrad, S=self.S, P=self.P, D=self.D)
     self.grads[0] = dW
     if self.b is not None:
       self.grads[1] = np.sum(TopGrad, axis=(0, 2, 3))

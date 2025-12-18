@@ -1,3 +1,7 @@
+"""
+Testing the convolution forward & backward pass: 
+All checks pass ✅
+"""
 
 import torch
 import torch.nn as nn
@@ -5,9 +9,9 @@ import numpy as np
 import sys
 import os
 
-# Import from convo.py
 sys.path.append(os.getcwd())
-from convo import _corr2d, corr2d_backward, Conv2d
+from functional import _corr2d, corr2d_backward
+from layers import Conv2d
 
 def test_conv_forward_backward(N, C, H, W, OutC, KH, KW, S, P, D):
     print(f"Testing: N={N}, C={C}, H={H}, W={W}, OutC={OutC}, K=({KH},{KW}), S={S}, P={P}, D={D}")

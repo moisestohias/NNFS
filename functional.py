@@ -39,14 +39,14 @@ def _pad(Z: np.ndarray, K: np.ndarray, mode: str="valid") -> np.ndarray:
         ## Warning: Pytorch pads symmetrically breaking the strict math definition, 
         ## If you want this behavior use these instead, otherwise use the above two lines
         # PadTop, PadBottom = floor((KH-1)/2), ceil((KH-1)/2)
-        # PadLeft, PadRigh = floor((KW-1)/2), ceil((KW-1)/2)
+        # PadLeft, PadRight = floor((KW-1)/2), ceil((KW-1)/2)
         PadTop = PadBottom = KH // 2 
-        PadLeft = PadRight = KW // 2
-        padding = ((0,0),(0,0), (PadTop, PadBottom),(PadLeft, PadRigh))
+        PadLeft = PadRightt = KW // 2
+        padding = ((0,0),(0,0), (PadTop, PadBottom),(PadLeft, PadRight))
     elif mode == 'full':
         PadTop, PadBottom = KH-1, KH-1 # full-convolution aligns kernel edge with the firs pixel of input, thus K-1
-        PadLeft, PadRigh = KW-1, KW-1
-        padding = ((0,0),(0,0), (PadTop, PadBottom),(PadLeft, PadRigh))
+        PadLeft, PadRight = KW-1, KW-1
+        padding = ((0,0),(0,0), (PadTop, PadBottom),(PadLeft, PadRight))
     if np.array(padding).any(): Z = np.pad(Z, padding, mode='constant') 
     return Z, K 
 
@@ -85,7 +85,56 @@ def conv2d(Z, W, mode="valid"):
     Z_pad, W = _pad(Z, W, mode)
     return _corr2d(Z_pad, W[:, :, ::-1, ::-1], S=(1,1), P=(0,0), D=(1,1))
 
-def corr2d_backward(Z, W, TopGrad, mode="valid"):
+def corr2d_backward(Z, W, TopGrad, S=(1,1), P=(0,0), D=(1,1)):
+    """Compute gradients wrt weights (WGrad) and input (ZGrad) supporting stride and dilation."""
+    N, Cout, Hout, Wout = TopGrad.shape
+    Cout_w, Cin, KH, KW = W.shape
+    N_z, Cin_z, Hin, Win = Z.shape
+    S, P, D = _pair(S), _pair(P), _pair(D)
+
+    # 1. Pad Z for calculations
+    Z_pad = np.pad(Z, ((0,0), (0,0), (P[0],P[0]), (P[1],P[1]))) if sum(P) > 0 else Z
+
+    # 2. WGrad: Cross-correlation between Z_pad and TopGrad
+    # We want WGrad (Cout, Cin, KH, KW)
+    # WGrad[o, c, i, j] = sum_{n, h, w} Z_pad[n, c, h*S + i*D, w*S + j*D] * TopGrad[n, o, h, w]
+    # This is equivalent to corr2d(Z_pad.T, TopGrad.T, stride=D, dilation=S)
+    # Input: Z_pad.T (Cin, N, H_pad, W_pad)
+    # Kernels: TopGrad.T (Cout, N, Hout, Wout)
+    # Output will have channels equal to number of kernels (Cout)
+    # and first dimension Cin (from input)
+    # Result shape: (Cin, Cout, KH, KW)
+    WGrad = _corr2d(Z_pad.transpose(1, 0, 2, 3), 
+                    TopGrad.transpose(1, 0, 2, 3), 
+                    S=D, D=S).transpose(1, 0, 2, 3)
+    
+    # In case of remainder in floor division in forward pass, dW might be larger than original KH, KW
+    if WGrad.shape != W.shape:
+        WGrad = WGrad[:, :, :KH, :KW]
+
+    # 3. ZGrad: "Transposed" correlation (full convolution of TopGrad with flipped W)
+    # First, inflate TopGrad by inserting S-1 zeros between elements
+    G_inflated = np.zeros((N, Cout, (Hout-1)*S[0] + 1, (Wout-1)*S[1] + 1), dtype=TopGrad.dtype)
+    G_inflated[:, :, ::S[0], ::S[1]] = TopGrad
+    
+    # Kernel for ZGrad is W flipped spatially and transposed channels
+    # W is (Cout, Cin, KH, KW) -> (Cin, Cout, KH, KW)
+    W_flipped = W.transpose(1, 0, 2, 3)[:, :, ::-1, ::-1]
+    
+    # To get "full" convolution, we pad G_inflated
+    # The padding needed is (KH-1)*D
+    pad_h, pad_w = (KH-1)*D[0], (KW-1)*D[1]
+    
+    ZGrad_full = _corr2d(G_inflated, W_flipped, S=(1,1), P=(pad_h, pad_w), D=D)
+    
+    # Crop to original input size Hin, Win
+    # ZGrad_full is the gradient for Z_pad. 
+    # To get the gradient for Z, we crop the padding P that was added to Z.
+    ZGrad = ZGrad_full[:, :, P[0]:P[0]+Hin, P[1]:P[1]+Win]
+    
+    return WGrad, ZGrad
+
+def _corr2d_backward_old(Z, W, TopGrad, mode="valid"):
     """Compute gradients wrt weights (WGrad) and input (ZGrad)."""
     # WGrad: Convolve Input (as N channels) with TopGrad (as N kernels)
     # Z(N, C, H, W) -> (C, N, H, W)

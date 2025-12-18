@@ -39,9 +39,9 @@ else:
 
 MBS = 32
 mnist = MNIST(Flat=False, OneHot=True)
-n_batches = 10
+n_batches = 1562
 step_count = start_step
-n_steps = 2
+n_steps = 1
 checkpoint_every = 5  # Save checkpoint every 5 steps
 costs = []
 
